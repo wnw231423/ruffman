@@ -7,8 +7,12 @@ use std::hash::Hash;
 
 #[derive(Serialize, Deserialize)]
 struct CompressedData<T: Ord + Hash> {
-    encoder: BTreeMap<T, u64>,
-    data: BitVec<u8, Msb0>,
+    encoder: BTreeMap<T, u64>,  // the frequency table
+    
+    #[serde(with = "serde_bytes")]
+    data: Vec<u8>,              // the data is Vec<u8> rather than BitVec since BitVec costs extra memory for metadata
+    
+    bit_len: usize,             // the data may be not aligned to 8bit, so record the bit length. 2^64bit = 2^61Byte, should be enough.
 }
 
 /// Compress a File into a Vec<u8>
@@ -17,8 +21,6 @@ pub fn compress<T>(tokens: &Vec<T>) -> Vec<u8>
 where
     T: Clone + Ord + Hash + Serialize,
 {
-    // TODO: Serialze data represented by `Vec<u8>` rather than `bitvec`, 
-    // saving space of metadata of `bitvec`, to get a better compression ratio.
     let mut frequency_table: BTreeMap<T, u64> = BTreeMap::new();
 
     // generate frequency table
@@ -45,9 +47,13 @@ where
         data.extend(token_code);
     }
 
+    let len = data.len();
+    let data = data.into_vec();
+    
     let compressed_data = CompressedData {
         encoder: frequency_table,
         data: data,
+        bit_len: len,
     };
 
     rmp_serde::to_vec(&compressed_data).unwrap()
@@ -73,10 +79,10 @@ where
     };
 
     // restore original token vector
-    let data = compressed_data.data;
+    let data: BitVec<u8, Msb0> = BitVec::from_slice(&compressed_data.data);
     let mut tokens = Vec::new();
     let mut temp = bitvec![u8, Msb0;];
-    for i in 0..data.len() {
+    for i in 0..compressed_data.bit_len {
         temp.push(data[i]);
         if let Some(token) = decoder.get(&temp) {
             tokens.push(token.clone());
