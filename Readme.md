@@ -7,7 +7,7 @@ A naive Rust implementation of Huffman encoding algorithm. This is a self-practi
 
 ## TODO list
 - [ ] Improve CLI with `clap`.
-- [ ] Improve compression ratio.
+- [x] Improve compression ratio.
 - [ ] Speed up compression speed by making use of concurrency.
 - [ ] Support directory level compression and extraction. 
 
@@ -15,7 +15,7 @@ A naive Rust implementation of Huffman encoding algorithm. This is a self-practi
 ### Bits' things
 Since `u8`(byte) is the least unit for memory access, I need something to manipulating bits for Huffman Tree encoding. We can achieve this by write a 'Bit Buffer' manually or use existing crate. I chose to use crate `bitvec` because I'm curious about the process of reading doc and putting existing wheels into use.
 
-However, I discovered in my practice that the `BitVec` structure of `bitvec` crate brings lots of extra metadata, making the serialized data huge than expected. So I need to turn it into `Vec<u8>` before serializing.
+I picked `rmp-serde` to serialize the compressed data. During serializing,  the `BitVec` would costs 50% more storage and so do the `Vec<u8>`. But we can do [optimization](https://docs.rs/rmp-serde/latest/rmp_serde/#efficient-storage-of-u8-types) on `Vec<u8>` so I chose it.
 
 ### Traits' things
 #### from `PartialEq` to `Ord`

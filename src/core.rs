@@ -10,7 +10,7 @@ struct CompressedData<T: Ord + Hash> {
     encoder: BTreeMap<T, u64>,  // the frequency table
     
     #[serde(with = "serde_bytes")]
-    data: Vec<u8>,              // the data is Vec<u8> rather than BitVec since BitVec costs extra memory for metadata
+    data: Vec<u8>,              // the data type is Vec<u8>, we use `serde_bytes` crate to improve the storage efficiency.
     
     bit_len: usize,             // the data may be not aligned to 8bit, so record the bit length. 2^64bit = 2^61Byte, should be enough.
 }
