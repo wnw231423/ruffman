@@ -116,31 +116,27 @@ pub fn build_huffman_tree<T: Clone + Eq>(taf: &BTreeMap<T, u64>) -> Option<Huffm
 pub fn get_coding_table<T: Clone + Ord + Hash>(
     huf_tree: &HuffmanTree<T>,
 ) -> BTreeMap<T, BitVec<u8, Msb0>> {
-    // TODO:
-    // 1. use (alpha, belta) to pattern match a tuple, rather than cur
-    // 2. too many `clone`s
     let mut res = BTreeMap::new();
-
-    let mut stack: Vec<(&HuffmanTree<T>, BitVec<u8, Msb0>)> = vec![(huf_tree, BitVec::new())];
-    while !stack.is_empty() {
-        let cur = stack.pop().unwrap();
-        match cur.0 {
-            HuffmanTree::Leaf { token: t, .. } => {
-                res.insert(t.clone(), cur.1.clone());
+    let mut bv = bitvec![u8, Msb0;];
+    
+    fn dfs_helper <T: Clone + Ord>(t: &HuffmanTree<T>, res: &mut BTreeMap<T, BitVec<u8, Msb0>>, bv: &mut BitVec<u8, Msb0>) {
+        match t {
+            HuffmanTree::Leaf {token , ..} => {
+                res.insert(token.clone(), bv.clone());
             }
-            HuffmanTree::Node {
-                left: l, right: r, ..
-            } => {
-                let mut l_code = cur.1.clone();
-                l_code.push(false);
-                stack.push((&l, l_code));
+            HuffmanTree::Node {left, right , ..} => {
+                bv.push(false);
+                dfs_helper(left, res, bv);
+                bv.pop();
 
-                let mut r_code = cur.1.clone();
-                r_code.push(true);
-                stack.push((&r, r_code));
-            }
+                bv.push(true);
+                dfs_helper(right, res, bv);
+                bv.pop();
+            } 
         }
     }
+
+    dfs_helper(huf_tree, &mut res, &mut bv);
 
     return res;
 }

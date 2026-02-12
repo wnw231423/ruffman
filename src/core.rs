@@ -2,6 +2,7 @@
 use crate::huffman::*;
 use bitvec::prelude::*;
 use serde::{Deserialize, Serialize};
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::hash::Hash;
 
@@ -19,33 +20,60 @@ struct CompressedData<T: Ord + Hash> {
 /// you can decide what token you want to use
 pub fn compress<T>(tokens: &Vec<T>) -> Vec<u8>
 where
-    T: Clone + Ord + Hash + Serialize,
+    T: Clone + Ord + Hash + Serialize + Send + Sync,
 {
-    let mut frequency_table: BTreeMap<T, u64> = BTreeMap::new();
-
     // generate frequency table
-    for token in tokens {
-        let freq = frequency_table.get_mut(&token);
-        match freq {
-            Some(f) => {
-                *f = *f + 1;
-            }
-            None => {
-                frequency_table.insert(token.clone(), 1);
-            }
-        }
-    }
+
+    // let mut frequency_table: BTreeMap<T, u64> = BTreeMap::new();
+    // for token in tokens {
+    //     let freq = frequency_table.get_mut(&token);
+    //     match freq {
+    //         Some(f) => {
+    //             *f = *f + 1;
+    //         }
+    //         None => {
+    //             frequency_table.insert(token.clone(), 1);
+    //         }
+    //     }
+    // }
+
+    // this piece of code make use of `rayon` crate for parallelism
+    // to coping with par_iter, use functional programming style.
+    let frequency_table = tokens.par_iter()
+            .fold(|| BTreeMap::new(), |mut map: BTreeMap<T, u64>, token: &T| {
+                *map.entry(token.clone()).or_insert(0) += 1;
+                map
+            })
+            .reduce(|| BTreeMap::new(), |mut map1, map2| {
+                map2.into_iter()
+                    .for_each(|(t, f)| {
+                        *map1.entry(t).or_insert(0) += f;
+                    });
+                map1
+            });
 
     // build huffman tree
     let tree = build_huffman_tree(&frequency_table).unwrap();
     let code_table = get_coding_table(&tree);
 
     // generate compressed data
-    let mut data = bitvec![u8, Msb0;];
-    for token in tokens {
-        let token_code = code_table.get(&token).unwrap();
-        data.extend(token_code);
-    }
+
+    // let mut data = bitvec![u8, Msb0;];
+    // for token in tokens {
+    //     let token_code = code_table.get(&token).unwrap();
+    //     data.extend(token_code);
+    // }
+
+    let data = tokens.par_iter()
+            .fold(|| bitvec![u8, Msb0;], |mut bv, token| {
+                let token_code = code_table.get(token).unwrap();
+                bv.extend(token_code);
+                bv    
+            })
+            .reduce(|| bitvec![u8, Msb0;], |mut bv1, bv2| {
+                bv1.extend(bv2);
+                bv1
+            });
 
     let len = data.len();
     let data = data.into_vec();
@@ -65,28 +93,28 @@ where
 {
     let compressed_data: CompressedData<T> = rmp_serde::from_slice(buf).unwrap();
 
-    // restore the huffman tree and the coding table
+    // restore the huffman tree from the coding table
     let tree = build_huffman_tree(&compressed_data.encoder).unwrap();
-    let coding_table = get_coding_table(&tree);
 
-    // get decoder, a BTreeMap of code -> token
-    let decoder = {
-        let mut decoder = BTreeMap::new();
-        for (token, code) in coding_table {
-            decoder.insert(code, token);
-        }
-        decoder
-    };
-
-    // restore original token vector
+    // restore original token vector by walking on the huffman tree
     let data: BitVec<u8, Msb0> = BitVec::from_slice(&compressed_data.data);
     let mut tokens = Vec::new();
-    let mut temp = bitvec![u8, Msb0;];
+    let mut current_walk = &tree;
     for i in 0..compressed_data.bit_len {
-        temp.push(data[i]);
-        if let Some(token) = decoder.get(&temp) {
-            tokens.push(token.clone());
-            temp = bitvec![u8, Msb0;];
+        if data[i] == false {
+            current_walk = current_walk.left().unwrap();
+        } else {
+            current_walk = current_walk.right().unwrap();
+        }
+
+        match current_walk {
+            HuffmanTree::Leaf {token, .. } => {
+                tokens.push(token.clone());
+                current_walk = &tree;
+            }
+            HuffmanTree::Node { .. } => {
+                // do nothing
+            }
         }
     }
 
