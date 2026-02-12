@@ -6,7 +6,7 @@ A naive Rust implementation of Huffman encoding algorithm. This is a self-practi
 - `ruf extract <src> <dest>`: extract file `src` into file `dest`.
 
 ## TODO list
-- [ ] Improve CLI with `clap`.
+- [x] Improve CLI with `clap`.
 - [x] Improve compression ratio.
 - [ ] Speed up compression speed by making use of concurrency.
 - [ ] Support directory level compression and extraction. 
