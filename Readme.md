@@ -8,7 +8,7 @@ A naive Rust implementation of Huffman encoding algorithm. This is a self-practi
 ## TODO list
 - [x] Improve CLI with `clap`.
 - [x] Improve compression ratio.
-- [ ] Speed up compression speed by making use of concurrency.
+- [x] Speed up compression speed by making use of parallelism.
 - [ ] Support directory level compression and extraction. 
 
 ## Note and Idea
@@ -17,7 +17,10 @@ Since `u8`(byte) is the least unit for memory access, I need something to manipu
 
 I picked `rmp-serde` to serialize the compressed data. During serializing,  the `BitVec` would costs 50% more storage and so do the `Vec<u8>`. But we can do [optimization](https://docs.rs/rmp-serde/latest/rmp_serde/#efficient-storage-of-u8-types) on `Vec<u8>` so I chose it.
 
-### Traits' things
+### Parallelism
+I use `rayon` crate, which offers parallel level operations on iterators.
+
+### Rust's things
 #### from `PartialEq` to `Ord`
 I save the encoder in the form of frequency table rather than the huffman tree to save space. During extracting, I read the frequency table and rebuild the huffman tree. To make the tree of compressing process the same tree of extracting process, I use a `BTreeMap` to store the frequency and a `MinHeap` to build the tree, which requires the `Ord` trait.
 
@@ -30,3 +33,5 @@ I tried some free and functional programming style code and encounter tons of di
 
 The involved things are far beyond my initial intention, so I refactored and use a much more naive and simpler implementation. 
 
+#### recursive closures
+I failed to write recursive closures. Even though it's interesting to wonder, I think it's not a good idea to struggling with it for me as a beginner. So I pass the variable references, which should be captured by the closure, as arguments. It seems like old C style and I don't prefer to it.
